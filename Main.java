@@ -1,6 +1,7 @@
 import java.io.FileNotFoundException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.concurrent.ExecutorService;
 
@@ -9,15 +10,23 @@ class Main {
         String sevenZexe = "./bin/7zr_win.exe"; // Change this if using Linux or Mac.
         String secretFile = "secrets/1.7z"; // Secret file to extract using password.
         AtomicBoolean found = new AtomicBoolean(false); // Shared flag to stop all threads once password is found
+        AtomicInteger attempts = new AtomicInteger(0);
         Function<String, Boolean> callback = password -> {
             if (found.get()) return true; // Stop if already found
             boolean result = usePassword(sevenZexe, secretFile, password);
-            if (result) found.set(true); // Mark as found
+            if (result) {
+                found.set(true); // Mark as found
+                System.out.println("Success! Password: " + password);
+            }
+            int attemptCount = attempts.incrementAndGet();
+            if (attemptCount % 10000 == 0) {
+                System.out.println("Progress: " + attemptCount + " passwords attempted");
+            }
             return result;
         };
 
         String[] commonPasswords = Utils.readStrings("dictionaries/10-million-password-list-top-1000000.txt");
-        char[] allowedCharacters = {'a', 'b', 'c'};
+        // char[] allowedCharacters = {'a', 'b', 'c'};
         
         ExecutorService executor = Executors.newFixedThreadPool(8); // Reduced to 8 threads
         int chunkSize = commonPasswords.length / 8; // Split into 8 chunks
@@ -40,10 +49,7 @@ class Main {
         try {
             Process command = new ProcessBuilder(commandExe, "e", filename, "-y", "-p" + password).start();
             int exitCode = command.waitFor();
-            if (exitCode == 0) {
-                System.out.println("Success! Password: " + password);
-                return true;
-            }
+            return exitCode == 0;
         } catch (Exception e) {
             e.printStackTrace();
         }
